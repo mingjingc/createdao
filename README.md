@@ -1,4 +1,4 @@
-# CreateDAO: A Decentrailization Creator Platform 去中心化创作平台
+# CreateDAO: A Decentrailization Create Platform 去中心化创作平台
 
 ## Introduction
 
