@@ -10,13 +10,16 @@ module createdao::dao {
     use sui::clock::{Self, Clock};
     use sui::event;
     use std::string::{Self, String};
-   
+    
+    //--------Friend module--------
     friend createdao::create;
 
+    //-------Constant-------------
     const Proposal_Ready:u8 = 0;
     const Proposal_Success:u8 = 1;
     const Proposal_Executed:u8 = 2;
-
+   
+    //-------Error code-------------
     const EDefault:u64 = 0;
     const EAlreadyVoted:u64 = 1;
     const EProposalExpired:u64 = 2;
@@ -24,6 +27,7 @@ module createdao::dao {
     const EProposalNotSuccess:u64 = 4;
     const EFoundShortage: u64 = 5;
 
+    //--------Object------------
     struct DaoData has key,store {
         id: UID,
         asset: Balance<SUI>,
@@ -49,14 +53,17 @@ module createdao::dao {
         expire:u64,
     }
 
+    //--------Event----------
     struct EventProposalSuccess has drop, copy {
         proposalId: ID,
         receiver: address,
         needFounds: u64,
     }
 
+    //-----Witness----------------
     struct DAO has drop {}
 
+    //-----Constructor------------
     fun init(_witness: DAO, ctx:&mut TxContext) {
         let daoData = DaoData {
             id: object::new(ctx),
@@ -69,6 +76,7 @@ module createdao::dao {
         transfer::share_object(daoData);
     }
 
+    //---------------Function----------------
     public entry fun newProposal(task:vector<u8>, website:vector<u8>,contact:vector<u8>, needFounds:u64, expire:u64, ctx: &mut TxContext): ID {
         let proposal = Proposal {
             id: object::new(ctx),
@@ -145,11 +153,12 @@ module createdao::dao {
         assert!(proposal.status == Proposal_Ready, EProposalVoteEnd);
     }
 
+    //-------------Getter-------------------
     public entry fun asset_value(daoData:&DaoData): u64 {
         balance::value(&daoData.asset)
     }
 
-    public entry fun contribution(who:address, daoData:&DaoData): u64 {
+    public entry fun contribution(daoData:&DaoData, who:address): u64 {
         if (table::contains(&daoData.contributions, who) == true) {
             return *table::borrow(&daoData.contributions, who)
         };
