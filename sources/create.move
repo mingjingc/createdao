@@ -11,13 +11,16 @@ module createdao::create {
     use sui::balance::{Self, Balance};
     use createdao::dao::{Self, DaoData};
 
+    //--------Friend module------------
     friend createdao::market;
     
+    //-------Error code---------------
     const EDefault:u64 = 0;
     const EAlreadyRegistered:u64 = 1;
     const EWorkNotExist:u64 = 2;
     const ENeedRegister:u64 = 3;
 
+    //-------Object-------------
     struct UserProfile has key {
         id: UID,
         name: String,
@@ -43,10 +46,12 @@ module createdao::create {
         owner: address,
     }
 
+    //--------Witness----------
     struct CREATE has drop {
 
     }
 
+    //-------Constructor------------
     fun init(_witness: CREATE, ctx: &mut TxContext) {
         let globalConfig = GlobalConfig{
             id: object::new(ctx),
@@ -138,7 +143,7 @@ module createdao::create {
 
         dao::deposit(workGlobalInfo.owner, daoData, depositAmount);
     }
-
+    
     public entry fun collect_bonus(globalConfig:&mut GlobalConfig, ctx:&mut TxContext) {
         let sender = tx_context::sender(ctx);
         let user_asset = table::borrow_mut(&mut globalConfig.user_assets, sender);

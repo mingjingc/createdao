@@ -1,7 +1,7 @@
 #[test_only]
 module createdao::createdao_tests {
     use createdao::create::{Self, GlobalConfig, Work};
-    use createdao::dao::{Self, DaoData, Proposal};
+    use createdao::dao::{Self, DaoData};
     use createdao::market::{Self, Market};
     use sui::test_scenario::{Self, Scenario, next_tx};
     use sui::object::{Self, ID};
@@ -103,51 +103,52 @@ module createdao::createdao_tests {
 
         //User2 create proposal
         next_tx(&mut scenario, User2);
+        let proposalId:ID;
         {
             let myclock = test_scenario::take_shared<Clock>(&scenario);
+            let daoData = test_scenario::take_shared<DaoData>(&scenario);
             
             let task = b"develop a website for CreateDAO";
-            let website = b"https:://abc.com";
+            let website = b"https://abc.com";
             let contact = b"abc@abc.com";
             let needFunds = 100u64;
             let expire = Day + timestamp(&myclock);
-            dao::newProposal(task, website, contact, needFunds, expire, test_scenario::ctx(&mut scenario));
+            proposalId = dao::newProposal(&mut daoData, task, website, contact, needFunds, expire, test_scenario::ctx(&mut scenario));
 
             test_scenario::return_shared(myclock);
+            test_scenario::return_shared(daoData);
         };
 
         next_tx(&mut scenario, Creator);
         {
             let myclock = test_scenario::take_shared<Clock>(&scenario);
             let daoData = test_scenario::take_shared<DaoData>(&scenario);
-            let proposal = test_scenario::take_shared<Proposal>(&scenario);
-
+            
             //vote for proposal
-            dao::vote(&daoData, &mut proposal, &myclock, test_scenario::ctx(&mut scenario));
+            dao::vote(&mut daoData, proposalId, &myclock, test_scenario::ctx(&mut scenario));
 
             //check proposal status
-            assert!(dao::proposal_status(&proposal) == 1, 0);
+            let proposal = dao::borrow_proposal(&daoData, proposalId);
+            assert!(dao::proposal_status(proposal) == 1, 0);
 
             test_scenario::return_shared(myclock);
             test_scenario::return_shared(daoData);
-            test_scenario::return_shared(proposal);
         };
 
         next_tx(&mut scenario, User1);
         {
             let myclock = test_scenario::take_shared<Clock>(&scenario);
             let daoData = test_scenario::take_shared<DaoData>(&scenario);
-            let proposal = test_scenario::take_shared<Proposal>(&scenario);
-
+    
             //vote for proposal
-            dao::execute_proposal(&mut daoData, &mut proposal, &myclock, test_scenario::ctx(&mut scenario));
+            dao::execute_proposal(&mut daoData, proposalId, &myclock, test_scenario::ctx(&mut scenario));
 
             //check proposal status
-            assert!(dao::proposal_status(&proposal) == 2, 0);
+            let proposal = dao::borrow_proposal(&daoData, proposalId);
+            assert!(dao::proposal_status(proposal) == 2, 0);
 
             test_scenario::return_shared(myclock);
             test_scenario::return_shared(daoData);
-            test_scenario::return_shared(proposal);
         };
 
         next_tx(&mut scenario, User2);
