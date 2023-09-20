@@ -5,14 +5,17 @@ module createdao::market {
     use sui::transfer;
     use sui::coin::{Self, Coin};
     use sui::dynamic_object_field as dof;
-    use createdao::create::{Self, GlobalConfig};
+    use createdao::create::{Self, GlobalConfig, Work};
     use createdao::dao::{DaoData};
 
+    ///----------Error code-------------
     const EDefault:u64 = 0;
     const ENotOwner:u64 = 1;
     const ENotEnoughMoney:u64 = 2;
 
-    
+    ///------------Object----------------
+    // Coin is for that user can use multiple types of coin to buy 
+    // market is a platform of economic activity
     struct Market<phantom COIN> has key {
         id: UID,
     }
@@ -25,8 +28,10 @@ module createdao::market {
         owner: address,
     }
 
+    ///-------------Witness------------------
     struct MARKET has drop {}
 
+    ///-------------Constructor----------------
     fun init(_witness: MARKET, ctx:&mut TxContext){
         let market = Market<Coin<SUI>>{
             id: object::new(ctx),
@@ -35,9 +40,14 @@ module createdao::market {
         transfer::share_object(market);
     }
     
-    public entry fun list<T: key + store>(market:&mut Market<Coin<SUI>>, createGlobalConfig:&GlobalConfig,item:T, price: u64, ctx:&mut TxContext) {
-        let itemId = object::id(&item);
-        assert!(create::contains_work(createGlobalConfig, itemId) == true, EDefault);
+    ///---------------Function---------------------
+    // creator list his work in market for saling
+    // @param createGlobalConfig: gobalConfig object of create module
+    // @param item: currently it is the work created by creator
+    // @param price: how much f
+    public entry fun list(market:&mut Market<Coin<SUI>>, work:Work, price: u64, ctx:&mut TxContext) {
+        let workId = object::id(&work);
+        //assert!(create::contains_work(createGlobalConfig, workId) == true, EDefault);
 
         let sender = tx_context::sender(ctx);
         let listing = Listing {
@@ -45,34 +55,42 @@ module createdao::market {
             price: price,
             owner: sender,
         };
-        dof::add(&mut listing.id, true, item);
-        dof::add(&mut market.id, itemId, listing);
+        dof::add(&mut listing.id, true, work);
+        dof::add(&mut market.id, workId, listing);
     }
 
-    public entry fun delist<T: key + store>(market:&mut Market<SUI>, itemId:ID, ctx:&mut TxContext) {
+    // creator remove their work from market
+    // @param workId: object id of the work
+    public entry fun delist(market:&mut Market<SUI>, workId:ID, ctx:&mut TxContext) {
         let sender = tx_context::sender(ctx);
-        let Listing{id, price:_, owner} = dof::remove(&mut market.id, itemId);
+        let Listing{id, price:_, owner} = dof::remove(&mut market.id, workId);
         assert!(owner == sender, ENotOwner);
 
-        let item = dof::remove<bool,T>(&mut id, true);
+        let item = dof::remove<bool,Work>(&mut id, true);
         transfer::public_transfer(item, sender);
 
         object::delete(id);
     }
 
-    public entry fun buy<T: key + store>(market:&mut Market<Coin<SUI>>,createGlobalConfig:&mut GlobalConfig, daoData:&mut DaoData, itemId:ID, paid:Coin<SUI>, ctx:&mut TxContext)  {
+    // user buy a work
+    // @param createGlobalConfig: gobalConfig object of create module
+    // @param daoData: gobal data of DAO module
+    // @param workId: object id of the work
+    // @param paid: how much coin user pay for this work. The extra coin will be refunded
+    public entry fun buy(market:&mut Market<Coin<SUI>>,createGlobalConfig:&mut GlobalConfig, daoData:&mut DaoData, workId:ID, paid:Coin<SUI>, ctx:&mut TxContext)  {
         let sender = tx_context::sender(ctx);
-        let Listing{id, price, owner:_} = dof::remove(&mut market.id, itemId);
+        let Listing{id, price, owner:_} = dof::remove(&mut market.id, workId);
         assert!(coin::value(&paid) >=  price, ENotEnoughMoney);
         
         let reallyPaid = coin::split(&mut paid, price, ctx);
-        create::handle_deal(createGlobalConfig, daoData, itemId, sender, reallyPaid, ctx);
+        create::handle_deal(createGlobalConfig, daoData, workId, sender, reallyPaid, ctx);
 
-        let item = dof::remove<bool,T>(&mut id, true);
+        let item = dof::remove<bool,Work>(&mut id, true);
         transfer::public_transfer(item, sender);
         object::delete(id);
 
         if (coin::value(&paid) > 0) {
+            // return to user extra coin
             transfer::public_transfer(paid, sender);
         } else {
             coin::destroy_zero(paid);

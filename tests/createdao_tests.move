@@ -177,7 +177,7 @@ module createdao::createdao_tests {
             let price = 50u64;
 
             workId = object::id(&work);
-            market::list<Work>(&mut mymarket, &globalConfig, work, price, test_scenario::ctx(&mut scenario));
+            market::list(&mut mymarket, work, price, test_scenario::ctx(&mut scenario));
 
             test_scenario::return_shared(mymarket);
             test_scenario::return_shared(globalConfig);
@@ -193,7 +193,7 @@ module createdao::createdao_tests {
             let sui_coin = test_scenario::take_from_sender<Coin<SUI>>(&scenario);
 
             //TODO check contribution before and after
-            market::buy<Work>(&mut mymarket, &mut globalConfig, &mut daoData, workId, sui_coin, test_scenario::ctx(&mut scenario));
+            market::buy(&mut mymarket, &mut globalConfig, &mut daoData, workId, sui_coin, test_scenario::ctx(&mut scenario));
             
             test_scenario::return_shared(mymarket);
             test_scenario::return_shared(globalConfig);
