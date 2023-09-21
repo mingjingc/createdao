@@ -8,7 +8,9 @@ module createdao::create {
     use std::vector;
     use std::string::{Self, String};
     use sui::balance::{Self, Balance};
+    use sui::dynamic_object_field as dof;
     use createdao::dao::{Self, DaoData};
+    use createdao::util::{Self};
 
     //--------Friend module------------
     friend createdao::market;
@@ -37,6 +39,9 @@ module createdao::create {
         id: UID,
         title: String, 
         content:String,
+
+        advertisementId: ID,
+        advertisementExpire:u64,
     }
     
     struct WorkGlobalInfo has store,copy {
@@ -95,6 +100,8 @@ module createdao::create {
             id: object::new(ctx),
             title: string::utf8(title),
             content: string::utf8(content),
+            advertisementId: util::empty_ID(),
+            advertisementExpire:0,
         };
         let workId = object::id(&work);
         transfer::transfer(work, sender);
@@ -165,8 +172,31 @@ module createdao::create {
 
         //update owner of work
         workGlobalInfo.owner = newOwner;
-
+        
         dao::deposit(workGlobalInfo.owner, daoData, depositAmount);
+    }
+
+    public(friend) fun add_advertisement<AD: key+store>(globalConfig:&mut GlobalConfig,  daoData:&mut DaoData, work:&mut Work, advertisement:AD, expireTime:u64,amount:Coin<SUI>, ctx:&mut TxContext) {
+        let amountValue = coin::value(&amount);
+        assert!(amountValue > 0, EDefault);
+        
+        let advertisementId = object::id(&advertisement);
+        work.advertisementId = advertisementId;
+        work.advertisementExpire = expireTime;
+        
+        // 10% deposit to DAO
+        let depositAmount = coin::split(&mut amount, amountValue/10, ctx);
+        dao::deposit(tx_context::sender(ctx), daoData, depositAmount);
+
+        // 90% is personal
+        let user_asset = table::borrow_mut(&mut globalConfig.user_assets, tx_context::sender(ctx));
+        balance::join(user_asset, coin::into_balance(amount));
+
+        dof::add(&mut work.id, advertisementId, advertisement); 
+    }
+
+    public(friend) fun remove_current_advertisement<AD:key+store>(work:&mut Work) :AD {
+        dof::remove<ID, AD>(&mut work.id, work.advertisementId)
     }
 
     ///-----------------Getter-----------------------------
@@ -182,6 +212,14 @@ module createdao::create {
        let WorkGlobalInfo{workId, likes, owner} = table::borrow(&globalConfig.works, wordId);
 
        (*workId, *likes, *owner)
+    }
+
+    public fun contains_advertisement(work:&Work):bool {
+        work.advertisementId != util::empty_ID()
+    }
+
+    public fun advertisement_expire_time(work:&Work):u64 {
+        work.advertisementExpire
     }
 
     #[test_only]

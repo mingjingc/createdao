@@ -21,7 +21,7 @@ module createdao::dao {
     const Proposal_Executed:u8 = 2;
    
     //-------Error code-------------
-    const EDefault:u64 = 0;
+    //const EDefault:u64 = 0;
     const EAlreadyVoted:u64 = 1;
     const EProposalExpired:u64 = 2;
     const EProposalVoteEnd:u64 = 3;
@@ -108,7 +108,7 @@ module createdao::dao {
     }
 
     // vote to the proposal. who has contribution to the DAO can do it.
-    // @param daoData: gobal DAO DB, only one object for whole package
+    // @param daoData: gobal DAO data, only one object for whole package
     // @param proposalId: proposal object ID
     public entry fun vote(daoData:&mut DaoData, proposalId:ID, clock: &Clock, ctx:&mut TxContext) {
         let proposal = dof::borrow_mut<ID, Proposal>(&mut daoData.id, proposalId);

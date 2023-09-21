@@ -16,4 +16,4 @@
 
   ​              创作者给dao金库贡献的资金都会获得一定贡献值。
 
-合约地址: 0x1f36cf924c3f1288ce2220c8d3f68901f1cabe791a0328fe1d8539588e3b7d7c(devnet)
+合约地址: 0xa0004d42e5df1fbdbb1302ab3b388cbfe5b07d924ab51e26a9a843d6ab46ff4e(testnet)
