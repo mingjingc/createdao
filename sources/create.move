@@ -30,9 +30,10 @@ module createdao::create {
     }
     struct GlobalConfig has key, store {
         id: UID,
+        allUserAsset:Balance<SUI>,
         users: Table<address, ID>,
         works: Table<ID, WorkGlobalInfo>,
-        user_assets: Table<address, Balance<SUI>>,
+        user_assets: Table<address, u64>,
     }
 
     struct Work has key, store {
@@ -59,6 +60,7 @@ module createdao::create {
     fun init(_witness: CREATE, ctx: &mut TxContext) {
         let globalConfig = GlobalConfig{
             id: object::new(ctx),
+            allUserAsset: balance::zero(),
             users: table::new(ctx),
             works: table::new(ctx),
             user_assets: table::new(ctx),
@@ -137,21 +139,14 @@ module createdao::create {
         assert!(amountValue > 0, EDefault);
         
         let workGlobalInfo = table::borrow(&globalConfig.works, workId);
-        let depositAmount = coin::split(&mut amount, amountValue/10, ctx);
-        if (table::contains(&globalConfig.user_assets, workGlobalInfo.owner) == false) {
-            table::add(&mut globalConfig.user_assets, workGlobalInfo.owner, balance::zero());
-        };
-        let user_asset = table::borrow_mut(&mut globalConfig.user_assets, workGlobalInfo.owner);
-        balance::join(user_asset, coin::into_balance(amount));
-
-        dao::deposit(workGlobalInfo.owner, daoData, depositAmount);
+        handle_income_(workGlobalInfo.owner, globalConfig, daoData, amount, ctx);
     }
 
     // User withdraws revenue
     public entry fun collect_bonus(globalConfig:&mut GlobalConfig, ctx:&mut TxContext) {
         let sender = tx_context::sender(ctx);
-        let user_asset = table::borrow_mut(&mut globalConfig.user_assets, sender);
-        let amount = balance::withdraw_all(user_asset);
+        let user_asset_value = table::borrow_mut(&mut globalConfig.user_assets, sender);
+        let amount = balance::split(&mut globalConfig.allUserAsset, *user_asset_value);
 
         assert!(balance::value(&amount)>0 , EDefault);
         transfer::public_transfer(coin::from_balance(amount, ctx), sender);
@@ -163,17 +158,11 @@ module createdao::create {
         assert!(amountValue > 0, EDefault);
         
         let workGlobalInfo = table::borrow_mut(&mut globalConfig.works, workId);
-        let depositAmount = coin::split(&mut amount, amountValue/10, ctx);
-        if (table::contains(&globalConfig.user_assets, workGlobalInfo.owner) == false) {
-            table::add(&mut globalConfig.user_assets, workGlobalInfo.owner, balance::zero());
-        };
-        let user_asset = table::borrow_mut(&mut globalConfig.user_assets, workGlobalInfo.owner);
-        balance::join(user_asset, coin::into_balance(amount));
-
+        let preOwner = workGlobalInfo.owner;
         //update owner of work
         workGlobalInfo.owner = newOwner;
-        
-        dao::deposit(workGlobalInfo.owner, daoData, depositAmount);
+
+        handle_income_(preOwner, globalConfig, daoData, amount, ctx);
     }
 
     public(friend) fun add_advertisement<AD: key+store>(globalConfig:&mut GlobalConfig,  daoData:&mut DaoData, work:&mut Work, advertisement:AD, expireTime:u64,amount:Coin<SUI>, ctx:&mut TxContext) {
@@ -183,20 +172,28 @@ module createdao::create {
         let advertisementId = object::id(&advertisement);
         work.advertisementId = advertisementId;
         work.advertisementExpire = expireTime;
-        
-        // 10% deposit to DAO
-        let depositAmount = coin::split(&mut amount, amountValue/10, ctx);
-        dao::deposit(tx_context::sender(ctx), daoData, depositAmount);
-
-        // 90% is personal
-        let user_asset = table::borrow_mut(&mut globalConfig.user_assets, tx_context::sender(ctx));
-        balance::join(user_asset, coin::into_balance(amount));
-
         dof::add(&mut work.id, advertisementId, advertisement); 
+
+        handle_income_(tx_context::sender(ctx), globalConfig, daoData, amount, ctx);
     }
 
     public(friend) fun remove_current_advertisement<AD:key+store>(work:&mut Work) :AD {
         dof::remove<ID, AD>(&mut work.id, work.advertisementId)
+    }
+
+    fun handle_income_(who:address, globalConfig:&mut GlobalConfig, daoData:&mut DaoData, amount:Coin<SUI>, ctx:&mut TxContext) {
+        let totalIncomeValue = coin::value(&amount);
+        // 10% deposit to DAO
+        let depositAmount = coin::split(&mut amount, totalIncomeValue/10, ctx);
+        dao::deposit(who, daoData, depositAmount);
+
+        // 90% is personal
+        if (table::contains(&globalConfig.user_assets, who) == false) {
+            table::add(&mut globalConfig.user_assets, who, 0);
+        };
+        let user_asset_value = table::borrow_mut(&mut globalConfig.user_assets, who);
+        *user_asset_value = *user_asset_value + coin::value(&amount);
+        balance::join(&mut globalConfig.allUserAsset, coin::into_balance(amount));
     }
 
     ///-----------------Getter-----------------------------
@@ -220,6 +217,15 @@ module createdao::create {
 
     public fun advertisement_expire_time(work:&Work):u64 {
         work.advertisementExpire
+    }
+
+    public fun is_owner(globalConfig:&GlobalConfig, workId:ID, who:address):bool {
+        if (table::contains(&globalConfig.works, workId) == false) {
+            return false
+        };
+        let workGlobalInfo = table::borrow(&globalConfig.works, workId);
+
+        workGlobalInfo.owner == who
     }
     
     public fun work_likes_count(globalConfig:&GlobalConfig, workId:ID):u64 {
