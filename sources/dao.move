@@ -170,11 +170,11 @@ module createdao::dao {
     }
 
     ///-------------Getter-------------------
-    public entry fun asset_value(daoData:&DaoData): u64 {
+    public fun asset_value(daoData:&DaoData): u64 {
         balance::value(&daoData.asset)
     }
 
-    public entry fun contribution(daoData:&DaoData, who:address): u64 {
+    public fun contribution(daoData:&DaoData, who:address): u64 {
         if (table::contains(&daoData.contributions, who) == true) {
             return *table::borrow(&daoData.contributions, who)
         };
