@@ -40,6 +40,7 @@ module createdao::market {
 
     struct Advertisement has key, store {
         id: UID,
+        owner: address,
         targetWorkId: ID, // What's work the advertisement want to attach
         content: String,
         pay: Balance<SUI>, // How much coin creator can get if they accept this advertisement
@@ -118,11 +119,12 @@ module createdao::market {
     }
 
     public entry fun list_advertisement(advertisementMarket:&mut AdvertisementMarket<Coin<SUI>>,
-             createGlobalConfig:&GlobalConfig, workId: ID, content:vector<u8>, pay:Coin<SUI>, duration:u64, ctx:&mut TxContext) {
+             createGlobalConfig:&GlobalConfig, workId: ID, content:vector<u8>, pay:Coin<SUI>, duration:u64, ctx:&mut TxContext):ID {
         // advertisement only attach to a existent work
         assert!(create::contains_work(createGlobalConfig, workId) == true, EWorkNotExist);
         let advertisement = Advertisement{
             id: object::new(ctx),
+            owner: tx_context::sender(ctx),
             targetWorkId: workId,
             content: string::utf8(content),
             pay: coin::into_balance(pay),
@@ -130,10 +132,13 @@ module createdao::market {
         };
         let advertisementId = object::id(&advertisement);
         dof::add(&mut advertisementMarket.id, advertisementId, advertisement);
+
+        advertisementId
     }
 
     public entry fun delete_advertisement(advertisementMarket:&mut AdvertisementMarket<Coin<SUI>>, advertisementId:ID, ctx:&mut TxContext) {
-        let advertisement = dof::remove<ID, Advertisement>(&mut advertisementMarket.id, advertisementId);  
+        let advertisement = dof::remove<ID, Advertisement>(&mut advertisementMarket.id, advertisementId); 
+        assert!(advertisement.owner == tx_context::sender(ctx), ENotOwner); 
 
         // return coin to who list this advertisement
         let b = balance::withdraw_all(&mut advertisement.pay);
@@ -143,8 +148,9 @@ module createdao::market {
         transfer::transfer(advertisement, util::zero_address());
     }
 
-    public entry fun accept_advertisement(advertisementMarket:&mut AdvertisementMarket<Coin<SUI>>,work:&mut Work,
-        createGlobalConfig:&mut GlobalConfig, daoData:&mut DaoData, advertisementId:ID, clock:&Clock,ctx:&mut TxContext) {
+    public entry fun accept_advertisement(advertisementMarket:&mut AdvertisementMarket<Coin<SUI>>,
+    createGlobalConfig:&mut GlobalConfig, daoData:&mut DaoData, 
+    work:&mut Work, advertisementId:ID, clock:&Clock,ctx:&mut TxContext) {
         if (create::contains_advertisement(work) == true) {
             let preAdvertisement =  create::remove_current_advertisement<Advertisement>(work);
             if (create::advertisement_expire_time(work) > clock::timestamp_ms(clock)) {

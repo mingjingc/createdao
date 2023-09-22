@@ -159,7 +159,7 @@ module createdao::dao {
        balance::join(&mut daoData.asset, b);
 
         // update user contribution
-       let contribution = value/10;
+       let contribution = value;
        if (table::contains(&daoData.contributions, who) == false) {
             table::add(&mut daoData.contributions, who, contribution)
        } else {
@@ -170,11 +170,11 @@ module createdao::dao {
     }
 
     ///-------------Getter-------------------
-    public  fun asset_value(daoData:&DaoData): u64 {
+    public entry fun asset_value(daoData:&DaoData): u64 {
         balance::value(&daoData.asset)
     }
 
-    public  fun contribution(daoData:&DaoData, who:address): u64 {
+    public entry fun contribution(daoData:&DaoData, who:address): u64 {
         if (table::contains(&daoData.contributions, who) == true) {
             return *table::borrow(&daoData.contributions, who)
         };
