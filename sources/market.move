@@ -8,6 +8,7 @@ module createdao::market {
     use std::string::{Self, String};
     use sui::balance::{Self, Balance};
     use sui::clock::{Self, Clock};
+    use sui::event;
     use createdao::util::{Self};
     use createdao::create::{Self, GlobalConfig, Work};
     use createdao::dao::{DaoData};
@@ -48,6 +49,37 @@ module createdao::market {
         duration:u64, // How long the advertisement show in the work
     }
 
+    ///-----------Event-----------
+    struct EventList has drop, copy {
+        from: address,
+        listingId: ID,
+        workId: ID,
+        price: u64,
+    }
+    struct EventDeleteListing has drop, copy {
+        listingId: ID,
+    }
+
+    struct EventNewMatch has drop, copy {
+        whoBuy: address,
+        whoSell: address,
+        workId: ID, 
+    }
+
+    struct EventNewAdvertisement has drop, copy {
+        from: address,
+        advertisementId: ID,
+        targetWorkId: ID,
+        pay: u64,
+    }
+    struct EventAdvertisementDelete has drop, copy {
+        advertisementId: ID,
+    }
+    struct EventAdvertisementAccepted has drop, copy {
+        workId: ID,
+        advertisementId: ID
+    }
+
     ///-------------Witness------------------
     struct MARKET has drop {}
 
@@ -77,8 +109,16 @@ module createdao::market {
             price: price,
             owner: sender,
         };
+        let listingId = object::id(&listing);
         dof::add(&mut listing.id, true, work);
         dof::add(&mut market.id, workId, listing);
+
+        event::emit(EventList{
+            from: sender,
+            listingId: listingId,
+            workId: workId,
+            price: price,
+        });
     }
 
     // creator remove their work from market
@@ -91,7 +131,11 @@ module createdao::market {
         let item = dof::remove<bool,Work>(&mut id, true);
         transfer::public_transfer(item, sender);
 
+        let listingId = object::uid_to_inner(&id);
         object::delete(id);
+        event::emit(EventDeleteListing{
+            listingId: listingId,
+        });
     }
 
     // user buy a work
@@ -105,7 +149,7 @@ module createdao::market {
         assert!(coin::value(&pay) >=  price, ENotEnoughMoney);
         
         let reallyPay = coin::split(&mut pay, price, ctx);
-        create::handle_deal(createGlobalConfig, daoData, workId, sender, reallyPay, ctx);
+        let oldOwner = create::handle_deal(createGlobalConfig, daoData, workId, sender, reallyPay, ctx);
 
         let item = dof::remove<bool,Work>(&mut id, true);
         transfer::public_transfer(item, sender);
@@ -116,7 +160,13 @@ module createdao::market {
             transfer::public_transfer(pay, sender);
         } else {
             coin::destroy_zero(pay);
-        }
+        };
+
+        event::emit(EventNewMatch{
+            whoBuy: sender,
+            whoSell: oldOwner,
+            workId: workId,
+        });
     }
 
     // user list a advertisement listing.
@@ -137,8 +187,14 @@ module createdao::market {
             duration: duration,
         };
         let advertisementId = object::id(&advertisement);
-        dof::add(&mut advertisementMarket.id, advertisementId, advertisement);
 
+        event::emit(EventNewAdvertisement{
+            from: tx_context::sender(ctx),
+            advertisementId: advertisementId,
+            targetWorkId: workId,
+            pay: balance::value(&advertisement.pay),
+        });
+        dof::add(&mut advertisementMarket.id, advertisementId, advertisement);
         advertisementId
     }
 
@@ -152,6 +208,9 @@ module createdao::market {
         let b = balance::withdraw_all(&mut advertisement.pay);
         transfer::public_transfer(coin::from_balance(b, ctx), tx_context::sender(ctx));
 
+        event::emit(EventAdvertisementDelete{
+            advertisementId: object::id(&advertisement),
+        });
         //destory object 
         transfer::transfer(advertisement, util::zero_address());
     }
@@ -162,6 +221,7 @@ module createdao::market {
     public entry fun accept_advertisement(advertisementMarket:&mut AdvertisementMarket<Coin<SUI>>,
     createGlobalConfig:&mut GlobalConfig, daoData:&mut DaoData, 
     work:&mut Work, advertisementId:ID, clock:&Clock,ctx:&mut TxContext) {
+        let workId = object::id(work);
         if (create::contains_advertisement(work) == true) {
             let preAdvertisement =  create::remove_current_advertisement<Advertisement>(work);
             if (create::advertisement_expire_time(work) > clock::timestamp_ms(clock)) {
@@ -181,6 +241,11 @@ module createdao::market {
         create::add_advertisement<Advertisement>(createGlobalConfig, daoData, work, 
                 advertisement, advertisementExpire,
                  coin::from_balance(pay, ctx),ctx);
+
+        event::emit(EventAdvertisementAccepted{
+            advertisementId: advertisementId,
+            workId: workId,
+        });
     }
 
     #[test_only]

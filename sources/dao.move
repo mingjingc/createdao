@@ -55,6 +55,11 @@ module createdao::dao {
     }
 
     //--------Event----------
+    struct EventNewProposal has drop, copy {
+        from: address,
+        proposalId: ID,
+    }
+
     struct EventProposalSuccess has drop, copy {
         proposalId: ID, // proposal object id
         receiver: address,
@@ -104,6 +109,10 @@ module createdao::dao {
         // add proposal as a child object of daoData
         dof::add(&mut daoData.id, proposalId, proposal);
 
+        event::emit(EventNewProposal{
+            from: tx_context::sender(ctx),
+            proposalId: proposalId,
+        });
         proposalId
     }
 
