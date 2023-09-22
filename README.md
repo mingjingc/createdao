@@ -22,8 +22,4 @@
 
   ​              创作者给dao金库贡献的资金都会获得一定贡献值。
 
-<<<<<<< HEAD
-合约地址: 0x5e497f9fa9b7e2b84b97cc4685aa5191e6d5aad5855a5a5559cffcb6df4129a3(devnet)
-=======
 合约地址: 0xa0004d42e5df1fbdbb1302ab3b388cbfe5b07d924ab51e26a9a843d6ab46ff4e(Sui testnet)
->>>>>>> dev
