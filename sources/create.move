@@ -41,9 +41,11 @@ module createdao::create {
     struct Work has key, store {
         id: UID,
         title: String, 
-        content:String,
+        content:String, // like NFT tokenURI, maybe be content or URL point to content(IPFS)
 
-        advertisementId: ID,
+        // object id of advertisement attached to the work. only to easy query. 
+        // the advertisement object is child_object of the work.
+        advertisementId: ID, 
         advertisementExpire:u64,
     }
     
