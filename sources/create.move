@@ -20,6 +20,7 @@ module createdao::create {
     const EAlreadyRegistered:u64 = 1;
     const EWorkNotExist:u64 = 2;
     const ENeedRegister:u64 = 3;
+    const EEmptyBalance:u64 = 4;
 
     //-------Object-------------
     struct UserProfile has key {
@@ -146,7 +147,10 @@ module createdao::create {
     public entry fun collect_bonus(globalConfig:&mut GlobalConfig, ctx:&mut TxContext) {
         let sender = tx_context::sender(ctx);
         let user_asset_value = table::borrow_mut(&mut globalConfig.user_assets, sender);
+        assert!(*user_asset_value > 0, EEmptyBalance);
+
         let amount = balance::split(&mut globalConfig.allUserAsset, *user_asset_value);
+        *user_asset_value = 0;
 
         assert!(balance::value(&amount)>0 , EDefault);
         transfer::public_transfer(coin::from_balance(amount, ctx), sender);
