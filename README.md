@@ -22,4 +22,10 @@
 
   ​              创作者给dao金库贡献的资金都会获得一定贡献值。
 
-合约地址: 0xa0004d42e5df1fbdbb1302ab3b388cbfe5b07d924ab51e26a9a843d6ab46ff4e(Sui testnet)
+## 合约
+#### Testnet环境
+- 合约地址: [0xa0004d42e5df1fbdbb1302ab3b388cbfe5b07d924ab51e26a9a843d6ab46ff4e(Sui testnet)](https://suiexplorer.com/object/0x42c9e1296bae0774135ddfa9933eb412a81aa444209a89e6a317eae3166546f1?module=dao&network=testnet)
+- daoData: 0x764c73b03632112d4cf08ee8ba15d377869fc398d62a2d4d79a88434afab9713 
+- globalConfig: 0xba38a8dd20bc16a3633a1d0ff6aa26b8d1948b6b2c153903e028706aa62c3188
+- market: 0x8b87dddb1ce3c28663bd4462f1cf2a16ab2597d0cbd66c3d289bd62d43afef2f
+- advertisementMarket: 0xb40f61534fa90a984e6b2172b8817d2375270d08960d8f05667b33c6264e2476
