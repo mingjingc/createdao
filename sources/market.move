@@ -64,6 +64,7 @@ module createdao::market {
         whoBuy: address,
         whoSell: address,
         workId: ID, 
+        price: u64,
     }
 
     struct EventNewAdvertisement has drop, copy {
@@ -77,7 +78,8 @@ module createdao::market {
     }
     struct EventAdvertisementAccepted has drop, copy {
         workId: ID,
-        advertisementId: ID
+        advertisementId: ID,
+        price: u64,
     }
 
     ///-------------Witness------------------
@@ -166,6 +168,7 @@ module createdao::market {
             whoBuy: sender,
             whoSell: oldOwner,
             workId: workId,
+            price: price,
         });
     }
 
@@ -237,6 +240,7 @@ module createdao::market {
         assert!(object::id(work) == advertisement.targetWorkId, ENotTargetWork);
 
         let pay = balance::withdraw_all(&mut advertisement.pay);
+        let price = balance::value(&pay);
         let advertisementExpire = advertisement.duration + clock::timestamp_ms(clock);
         create::add_advertisement<Advertisement>(createGlobalConfig, daoData, work, 
                 advertisement, advertisementExpire,
@@ -245,6 +249,7 @@ module createdao::market {
         event::emit(EventAdvertisementAccepted{
             advertisementId: advertisementId,
             workId: workId,
+            price: price,
         });
     }
 
