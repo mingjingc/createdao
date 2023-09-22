@@ -2,18 +2,20 @@
 module createdao::createdao_tests {
     use createdao::create::{Self, GlobalConfig, Work};
     use createdao::dao::{Self, DaoData};
-    use createdao::market::{Self, Market};
-    use sui::test_scenario::{Self, Scenario, next_tx};
+    use createdao::market::{Self, Market, AdvertisementMarket};
+    use sui::test_scenario::{Self, Scenario, next_tx, };
     use sui::object::{Self, ID};
     use sui::sui::{SUI};
     use sui::coin::{Self, Coin};
     use sui::clock::{Self, Clock};
     use sui::transfer::{Self};
+    use sui::tx_context::{Self, TxContext};
     use std::vector;
 
     const Creator: address = @0x10;
     const User1: address = @0x11;
     const User2: address = @0x12;
+    const User3: address = @0x13;
 
     const Day: u64 = 24*60*60*1000;
 
@@ -177,7 +179,7 @@ module createdao::createdao_tests {
             let price = 50u64;
 
             workId = object::id(&work);
-            market::list<Work>(&mut mymarket, &globalConfig, work, price, test_scenario::ctx(&mut scenario));
+            market::list(&mut mymarket, work, price, test_scenario::ctx(&mut scenario));
 
             test_scenario::return_shared(mymarket);
             test_scenario::return_shared(globalConfig);
@@ -193,7 +195,7 @@ module createdao::createdao_tests {
             let sui_coin = test_scenario::take_from_sender<Coin<SUI>>(&scenario);
 
             //TODO check contribution before and after
-            market::buy<Work>(&mut mymarket, &mut globalConfig, &mut daoData, workId, sui_coin, test_scenario::ctx(&mut scenario));
+            market::buy(&mut mymarket, &mut globalConfig, &mut daoData, workId, sui_coin, test_scenario::ctx(&mut scenario));
             
             test_scenario::return_shared(mymarket);
             test_scenario::return_shared(globalConfig);
@@ -201,6 +203,97 @@ module createdao::createdao_tests {
         };
         check_balance(User1, 50, &mut scenario);
 
+        test_scenario::end(scenario);
+    }
+
+    #[test]
+    fun advertisement_market_test() {
+        let scenario = prepare();
+        init_for_dao_test(&mut scenario);
+
+        let workId:ID;
+        next_tx(&mut scenario, Creator);
+        {
+            let work = test_scenario::take_from_sender<Work>(&scenario);
+            workId = object::id(&work);
+
+            test_scenario::return_to_sender(&scenario, work);
+        };
+        
+        // list a advertisement listing
+        let advertisementId:ID;
+        next_tx(&mut scenario, User3);
+        {
+            let advertisementMarket = test_scenario::take_shared<AdvertisementMarket<Coin<SUI>>>(&scenario);
+            let globalConfig = test_scenario::take_shared<GlobalConfig>(&scenario);
+            let content = b"advertisement description, a vedio, or a picture";
+
+            // how much can pay
+            let sui_coin = test_scenario::take_from_sender<Coin<SUI>>(&scenario);
+            let pay = coin::split(&mut sui_coin, 10, test_scenario::ctx(&mut scenario));
+            let duration = 1000_000u64; // 
+
+            advertisementId = market::list_advertisement(&mut advertisementMarket, &globalConfig, workId,
+                 content, pay, duration, test_scenario::ctx(&mut scenario));
+
+            test_scenario::return_shared(advertisementMarket);
+            test_scenario::return_shared(globalConfig);
+            test_scenario::return_to_sender(&scenario, sui_coin);
+        };
+        // owner of work accept this advertisement, he will receive payment
+        next_tx(&mut scenario, Creator);
+        {   
+            let sender = tx_context::sender(test_scenario::ctx(&mut scenario));
+            let advertisementMarket = test_scenario::take_shared<AdvertisementMarket<Coin<SUI>>>(&scenario);
+            let globalConfig = test_scenario::take_shared<GlobalConfig>(&scenario);
+            let daoData = test_scenario::take_shared<DaoData>(&scenario);
+            let work = test_scenario::take_from_sender<Work>(&scenario);
+            let myclock = test_scenario::take_shared<Clock>(&scenario);
+
+            let preContribition = dao::contribution(&daoData, sender);
+            market::accept_advertisement(&mut advertisementMarket, &mut globalConfig, &mut daoData,
+             &mut work, advertisementId, &myclock, test_scenario::ctx(&mut scenario));
+            let curContribution = dao::contribution(&daoData, sender);
+            assert!(preContribition + 1 == curContribution, 0);
+        
+            test_scenario::return_shared(advertisementMarket);
+            test_scenario::return_shared(globalConfig);
+            test_scenario::return_shared(daoData);
+            test_scenario::return_shared(myclock);
+            test_scenario::return_to_sender(&scenario, work);
+        };
+        check_balance(User3, 90, &mut scenario);
+
+
+        // list another new advertisement
+        next_tx(&mut scenario, User3);
+        {
+            let advertisementMarket = test_scenario::take_shared<AdvertisementMarket<Coin<SUI>>>(&scenario);
+            let globalConfig = test_scenario::take_shared<GlobalConfig>(&scenario);
+            let content = b"advertisement description, a vedio, or a picture";
+
+            // how much can pay
+            let sui_coin = test_scenario::take_from_sender<Coin<SUI>>(&scenario);
+            let pay = coin::split(&mut sui_coin, 10, test_scenario::ctx(&mut scenario));
+            let duration = 1000_000u64; // 
+
+            advertisementId = market::list_advertisement(&mut advertisementMarket, &globalConfig, workId,
+                 content, pay, duration, test_scenario::ctx(&mut scenario));
+
+            test_scenario::return_shared(advertisementMarket);
+            test_scenario::return_shared(globalConfig);
+            test_scenario::return_to_sender(&scenario, sui_coin);
+        };
+        // delete advertisement
+        next_tx(&mut scenario, User3);
+        {
+            let advertisementMarket = test_scenario::take_shared<AdvertisementMarket<Coin<SUI>>>(&scenario);
+            market::delete_advertisement(&mut advertisementMarket, advertisementId, test_scenario::ctx(&mut scenario));
+            test_scenario::return_shared(advertisementMarket);
+        };
+        //TODO: check use balance. now only get recently coin.
+        check_balance(User3, 10, &mut scenario);
+        
         test_scenario::end(scenario);
     }
 
@@ -266,6 +359,10 @@ module createdao::createdao_tests {
     }
 
     fun init_for_dao_test(scenario: &mut Scenario) {
+        {
+            init_account_balance(User3, 100, test_scenario::ctx(scenario));
+        };
+
         next_tx(scenario, Creator);
         register(scenario, Creator);
 
@@ -290,6 +387,11 @@ module createdao::createdao_tests {
             create::collect_bonus(&mut globalConfig, test_scenario::ctx(scenario));
             test_scenario::return_shared(globalConfig);
         };
+    }
+
+    fun init_account_balance(account:address, value:u64, ctx:&mut TxContext){
+        let coin = coin::mint_for_testing<SUI>(value, ctx);
+        transfer::public_transfer(coin, account);
     }
 
     fun mint_sui_to(to:address, amount:u64,scenario:&mut Scenario) {

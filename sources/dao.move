@@ -21,7 +21,7 @@ module createdao::dao {
     const Proposal_Executed:u8 = 2;
    
     //-------Error code-------------
-    const EDefault:u64 = 0;
+    //const EDefault:u64 = 0;
     const EAlreadyVoted:u64 = 1;
     const EProposalExpired:u64 = 2;
     const EProposalVoteEnd:u64 = 3;
@@ -118,6 +118,9 @@ module createdao::dao {
 
         let sender = tx_context::sender(ctx); 
         let weight = table::borrow(&daoData.contributions, sender);
+        if (*weight == 0) {
+            return
+        };
 
         assert!(table::contains(&proposal.supporters, sender) == false, EAlreadyVoted);
         table::add(&mut proposal.supporters, sender, *weight);
@@ -156,7 +159,7 @@ module createdao::dao {
        balance::join(&mut daoData.asset, b);
 
         // update user contribution
-       let contribution = value/10;
+       let contribution = value;
        if (table::contains(&daoData.contributions, who) == false) {
             table::add(&mut daoData.contributions, who, contribution)
        } else {

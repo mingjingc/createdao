@@ -1,4 +1,3 @@
-
 module createdao::create {
     use sui::object::{Self, ID, UID};
     use sui::tx_context::{Self, TxContext};
@@ -9,7 +8,9 @@ module createdao::create {
     use std::vector;
     use std::string::{Self, String};
     use sui::balance::{Self, Balance};
+    use sui::dynamic_object_field as dof;
     use createdao::dao::{Self, DaoData};
+    use createdao::util::{Self};
 
     //--------Friend module------------
     friend createdao::market;
@@ -29,15 +30,19 @@ module createdao::create {
     }
     struct GlobalConfig has key, store {
         id: UID,
+        allUserAsset:Balance<SUI>,
         users: Table<address, ID>,
         works: Table<ID, WorkGlobalInfo>,
-        user_assets: Table<address, Balance<SUI>>,
+        user_assets: Table<address, u64>,
     }
 
     struct Work has key, store {
         id: UID,
         title: String, 
         content:String,
+
+        advertisementId: ID,
+        advertisementExpire:u64,
     }
     
     struct WorkGlobalInfo has store,copy {
@@ -48,13 +53,14 @@ module createdao::create {
 
     //--------Witness----------
     struct CREATE has drop {
-
+        
     }
 
     //-------Constructor------------
     fun init(_witness: CREATE, ctx: &mut TxContext) {
         let globalConfig = GlobalConfig{
             id: object::new(ctx),
+            allUserAsset: balance::zero(),
             users: table::new(ctx),
             works: table::new(ctx),
             user_assets: table::new(ctx),
@@ -63,6 +69,12 @@ module createdao::create {
         transfer::share_object(globalConfig);
     }
 
+    ///--------------------Function--------------------
+    // creator regisiter 
+    // @param globalConfig: global data of create module
+    // @param name: user name
+    // @param email: user email
+    // @param dec: user self-introduction
     public entry fun register(globalConfig:&mut GlobalConfig,name: vector<u8>, email: vector<u8>,dec: vector<u8>,ctx: &mut TxContext) {
         let sender =  tx_context::sender(ctx);
         assert!(contains_creator(globalConfig, sender) == false, EAlreadyRegistered);
@@ -79,6 +91,9 @@ module createdao::create {
         table::add(&mut globalConfig.users, sender, userId);
     }
 
+    // creator new a work
+    // @param title: work title
+    // @param content: work content or a url poiting to really content
     public entry fun new(globalConfig:&mut GlobalConfig, title: vector<u8>, content:vector<u8>, ctx:&mut TxContext):ID {
         let sender = tx_context::sender(ctx);
         assert!(contains_creator(globalConfig, sender) == true, ENeedRegister);
@@ -87,6 +102,8 @@ module createdao::create {
             id: object::new(ctx),
             title: string::utf8(title),
             content: string::utf8(content),
+            advertisementId: util::empty_ID(),
+            advertisementExpire:0,
         };
         let workId = object::id(&work);
         transfer::transfer(work, sender);
@@ -101,6 +118,8 @@ module createdao::create {
         workId
     }   
 
+    // user like a work when he think it's great
+    // @param workId: object id of a work
     public entry fun like(globalConfig:&mut GlobalConfig, workId:ID, ctx:&mut TxContext) {
         assert!(table::contains(&globalConfig.works, workId) == true, EWorkNotExist);
         let workGlobalInfo = table::borrow_mut(&mut globalConfig.works, workId);
@@ -111,48 +130,73 @@ module createdao::create {
         vector::insert(&mut workGlobalInfo.likes, sender, 0);
     }
     
+    // user reward coin to a work when he think it's great
+    // @param daoData: gobal DAO data
+    // @param workId: object id of a work
+    // @amount amount: how munch coin user want to reward
     public entry fun reward(globalConfig:&mut GlobalConfig, daoData:&mut DaoData, workId:ID, amount:Coin<SUI>,ctx:&mut TxContext) {
         let amountValue = coin::value(&amount);
         assert!(amountValue > 0, EDefault);
         
         let workGlobalInfo = table::borrow(&globalConfig.works, workId);
-        let depositAmount = coin::split(&mut amount, amountValue/10, ctx);
-        if (table::contains(&globalConfig.user_assets, workGlobalInfo.owner) == false) {
-            table::add(&mut globalConfig.user_assets, workGlobalInfo.owner, balance::zero());
-        };
-        let user_asset = table::borrow_mut(&mut globalConfig.user_assets, workGlobalInfo.owner);
-        balance::join(user_asset, coin::into_balance(amount));
-
-        dao::deposit(workGlobalInfo.owner, daoData, depositAmount);
+        handle_income_(workGlobalInfo.owner, globalConfig, daoData, amount, ctx);
     }
 
-    public(friend) fun handle_deal(globalConfig:&mut GlobalConfig, daoData:&mut DaoData, workId:ID, newOwner:address,amount:Coin<SUI>,ctx:&mut TxContext) {
-        let amountValue = coin::value(&amount);
-        assert!(amountValue > 0, EDefault);
-        
-        let workGlobalInfo = table::borrow_mut(&mut globalConfig.works, workId);
-        let depositAmount = coin::split(&mut amount, amountValue/10, ctx);
-        if (table::contains(&globalConfig.user_assets, workGlobalInfo.owner) == false) {
-            table::add(&mut globalConfig.user_assets, workGlobalInfo.owner, balance::zero());
-        };
-        let user_asset = table::borrow_mut(&mut globalConfig.user_assets, workGlobalInfo.owner);
-        balance::join(user_asset, coin::into_balance(amount));
-
-        //update owner of work
-        workGlobalInfo.owner = newOwner;
-
-        dao::deposit(workGlobalInfo.owner, daoData, depositAmount);
-    }
-    
+    // User withdraws revenue
     public entry fun collect_bonus(globalConfig:&mut GlobalConfig, ctx:&mut TxContext) {
         let sender = tx_context::sender(ctx);
-        let user_asset = table::borrow_mut(&mut globalConfig.user_assets, sender);
-        let amount = balance::withdraw_all(user_asset);
+        let user_asset_value = table::borrow_mut(&mut globalConfig.user_assets, sender);
+        let amount = balance::split(&mut globalConfig.allUserAsset, *user_asset_value);
 
         assert!(balance::value(&amount)>0 , EDefault);
         transfer::public_transfer(coin::from_balance(amount, ctx), sender);
     }
 
+    ///--------------Friend function, only call by friendly modules-----------------
+    public(friend) fun handle_deal(globalConfig:&mut GlobalConfig, daoData:&mut DaoData, workId:ID, newOwner:address,amount:Coin<SUI>,ctx:&mut TxContext) {
+        let amountValue = coin::value(&amount);
+        assert!(amountValue > 0, EDefault);
+        
+        let workGlobalInfo = table::borrow_mut(&mut globalConfig.works, workId);
+        let preOwner = workGlobalInfo.owner;
+        //update owner of work
+        workGlobalInfo.owner = newOwner;
+
+        handle_income_(preOwner, globalConfig, daoData, amount, ctx);
+    }
+
+    public(friend) fun add_advertisement<AD: key+store>(globalConfig:&mut GlobalConfig,  daoData:&mut DaoData, work:&mut Work, advertisement:AD, expireTime:u64,amount:Coin<SUI>, ctx:&mut TxContext) {
+        let amountValue = coin::value(&amount);
+        assert!(amountValue > 0, EDefault);
+        
+        let advertisementId = object::id(&advertisement);
+        work.advertisementId = advertisementId;
+        work.advertisementExpire = expireTime;
+        dof::add(&mut work.id, advertisementId, advertisement); 
+
+        handle_income_(tx_context::sender(ctx), globalConfig, daoData, amount, ctx);
+    }
+
+    public(friend) fun remove_current_advertisement<AD:key+store>(work:&mut Work) :AD {
+        dof::remove<ID, AD>(&mut work.id, work.advertisementId)
+    }
+
+    fun handle_income_(who:address, globalConfig:&mut GlobalConfig, daoData:&mut DaoData, amount:Coin<SUI>, ctx:&mut TxContext) {
+        let totalIncomeValue = coin::value(&amount);
+        // 10% deposit to DAO
+        let depositAmount = coin::split(&mut amount, totalIncomeValue/10, ctx);
+        dao::deposit(who, daoData, depositAmount);
+
+        // 90% is personal
+        if (table::contains(&globalConfig.user_assets, who) == false) {
+            table::add(&mut globalConfig.user_assets, who, 0);
+        };
+        let user_asset_value = table::borrow_mut(&mut globalConfig.user_assets, who);
+        *user_asset_value = *user_asset_value + coin::value(&amount);
+        balance::join(&mut globalConfig.allUserAsset, coin::into_balance(amount));
+    }
+
+    ///-----------------Getter-----------------------------
     public fun contains_work(globalConfig:&GlobalConfig, wordId: ID): bool {
         table::contains(&globalConfig.works, wordId)
     }
@@ -165,6 +209,28 @@ module createdao::create {
        let WorkGlobalInfo{workId, likes, owner} = table::borrow(&globalConfig.works, wordId);
 
        (*workId, *likes, *owner)
+    }
+
+    public fun contains_advertisement(work:&Work):bool {
+        work.advertisementId != util::empty_ID()
+    }
+
+    public fun advertisement_expire_time(work:&Work):u64 {
+        work.advertisementExpire
+    }
+
+    public fun is_owner(globalConfig:&GlobalConfig, workId:ID, who:address):bool {
+        if (table::contains(&globalConfig.works, workId) == false) {
+            return false
+        };
+        let workGlobalInfo = table::borrow(&globalConfig.works, workId);
+
+        workGlobalInfo.owner == who
+    }
+    
+    public fun work_likes_count(globalConfig:&GlobalConfig, workId:ID):u64 {
+        let workGlobalInfo = table::borrow(&globalConfig.works, workId);
+        vector::length(&workGlobalInfo.likes)
     }
 
     #[test_only]
