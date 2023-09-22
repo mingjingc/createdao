@@ -1,14 +1,16 @@
 <p align="center">
-  <img src="./logo.png" alt="A Decentrailization Create Platform" width="226">
+  <img src="./logo.png" alt="Slate: 去中心化创作平台" width="226">
 </p>
 
-# CreateDAO: A Decentrailization Create Platform 去中心化创作平台
+<div align=center>
+    <h1>去中心化创作平台</h1>
+</div>
 
-## Introduction
+## 简介
 
 目前中心化的创作平台抽成大，而且未来的抽成比例决定由，极大损害了创作者的利益与积极性。比如B站抽成规则: “硬币”分享收入比例为7:3，“大会员”分享收入11:9。去中心化创作平台可以降低抽成比例，未来的治理由创作者投票决定。
 
-## Contract Overview
+## 合约整体架构
 
 ![overview](./overview.png)
 
@@ -20,4 +22,4 @@
 
   ​              创作者给dao金库贡献的资金都会获得一定贡献值。
 
-合约地址: 0xa0004d42e5df1fbdbb1302ab3b388cbfe5b07d924ab51e26a9a843d6ab46ff4e(testnet)
+合约地址: 0xa0004d42e5df1fbdbb1302ab3b388cbfe5b07d924ab51e26a9a843d6ab46ff4e(Sui testnet)
