@@ -18,6 +18,7 @@ module createdao::market {
     const ENotEnoughMoney:u64 = 2;
     const EWorkNotExist:u64 = 3;
     const ECannotRemoteValidAdvertisement:u64 = 4;
+    const ENotTargetWork:u64 = 5;
 
     ///------------Object----------------
     // Coin is for that user can use multiple types of coin to buy 
@@ -118,6 +119,11 @@ module createdao::market {
         }
     }
 
+    // user list a advertisement listing.
+    // @param workId: object id of work.
+    // @param content: advertisement content, may picture or vedio url.
+    // @param pay: how much coin user can pay for this advertisement.
+    // @param duration: how much time advertisement attaching on the work.
     public entry fun list_advertisement(advertisementMarket:&mut AdvertisementMarket<Coin<SUI>>,
              createGlobalConfig:&GlobalConfig, workId: ID, content:vector<u8>, pay:Coin<SUI>, duration:u64, ctx:&mut TxContext):ID {
         // advertisement only attach to a existent work
@@ -136,6 +142,8 @@ module createdao::market {
         advertisementId
     }
 
+    // user delete advertisement listing. Only owner can do it.
+    // @param advertisementId: object id of advertisement
     public entry fun delete_advertisement(advertisementMarket:&mut AdvertisementMarket<Coin<SUI>>, advertisementId:ID, ctx:&mut TxContext) {
         let advertisement = dof::remove<ID, Advertisement>(&mut advertisementMarket.id, advertisementId); 
         assert!(advertisement.owner == tx_context::sender(ctx), ENotOwner); 
@@ -148,6 +156,9 @@ module createdao::market {
         transfer::transfer(advertisement, util::zero_address());
     }
 
+    // owner of the work accept the advertisement.
+    // @param @work: the work object
+    // @param @advertisementId: object id of the advertisement
     public entry fun accept_advertisement(advertisementMarket:&mut AdvertisementMarket<Coin<SUI>>,
     createGlobalConfig:&mut GlobalConfig, daoData:&mut DaoData, 
     work:&mut Work, advertisementId:ID, clock:&Clock,ctx:&mut TxContext) {
@@ -161,9 +172,10 @@ module createdao::market {
             //destory object 
             transfer::transfer(preAdvertisement, util::zero_address());
         };
-
         
-        let advertisement = dof::remove<ID, Advertisement>(&mut advertisementMarket.id, advertisementId);    
+        let advertisement = dof::remove<ID, Advertisement>(&mut advertisementMarket.id, advertisementId);  
+        assert!(object::id(work) == advertisement.targetWorkId, ENotTargetWork);
+
         let pay = balance::withdraw_all(&mut advertisement.pay);
         let advertisementExpire = advertisement.duration + clock::timestamp_ms(clock);
         create::add_advertisement<Advertisement>(createGlobalConfig, daoData, work, 
