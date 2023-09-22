@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="./logo.png" alt="A Decentrailization Create Platform" width="226">
+</p>
+
 # CreateDAO: A Decentrailization Create Platform 去中心化创作平台
 
 ## Introduction

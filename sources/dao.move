@@ -118,6 +118,9 @@ module createdao::dao {
 
         let sender = tx_context::sender(ctx); 
         let weight = table::borrow(&daoData.contributions, sender);
+        if (*weight == 0) {
+            return
+        };
 
         assert!(table::contains(&proposal.supporters, sender) == false, EAlreadyVoted);
         table::add(&mut proposal.supporters, sender, *weight);
@@ -167,11 +170,11 @@ module createdao::dao {
     }
 
     ///-------------Getter-------------------
-    public entry fun asset_value(daoData:&DaoData): u64 {
+    public  fun asset_value(daoData:&DaoData): u64 {
         balance::value(&daoData.asset)
     }
 
-    public entry fun contribution(daoData:&DaoData, who:address): u64 {
+    public  fun contribution(daoData:&DaoData, who:address): u64 {
         if (table::contains(&daoData.contributions, who) == true) {
             return *table::borrow(&daoData.contributions, who)
         };

@@ -221,6 +221,11 @@ module createdao::create {
     public fun advertisement_expire_time(work:&Work):u64 {
         work.advertisementExpire
     }
+    
+    public fun work_likes_count(globalConfig:&GlobalConfig, workId:ID):u64 {
+        let workGlobalInfo = table::borrow(&globalConfig.works, workId);
+        vector::length(&workGlobalInfo.likes)
+    }
 
     #[test_only]
     /// Wrapper of module initializer for testing
