@@ -186,7 +186,7 @@ module createdao::createdao_tests {
             test_scenario::return_shared(daoData);
         };
 
-        mint_sui_to(User1, 100, &mut scenario);
+        init_account_balance(User1, 100, test_scenario::ctx(&mut scenario));
         next_tx(&mut scenario, User1);
         {
             let mymarket = test_scenario::take_shared<Market<Coin<SUI>>>(&scenario);
@@ -392,14 +392,6 @@ module createdao::createdao_tests {
     fun init_account_balance(account:address, value:u64, ctx:&mut TxContext){
         let coin = coin::mint_for_testing<SUI>(value, ctx);
         transfer::public_transfer(coin, account);
-    }
-
-    fun mint_sui_to(to:address, amount:u64,scenario:&mut Scenario) {
-         next_tx(scenario, to);
-         {
-            let sui_coin = coin::mint_for_testing<SUI>(amount, test_scenario::ctx(scenario));
-            transfer::public_transfer(sui_coin, to);
-         };
     }
 
     fun check_balance(who:address, expectedBalance:u64, scenario:&mut Scenario) {
