@@ -4,13 +4,15 @@ module createdao::dao {
     use sui::balance::{Self, Balance};
     use sui::sui::{SUI};
     use sui::transfer;
-    use sui::coin::{Self, Coin};
+    use sui::coin::{Self, Coin, TreasuryCap};
     use sui::table::{Self, Table};
     use sui::url::{Self, Url};
     use sui::clock::{Self, Clock};
     use sui::event;
     use std::string::{Self, String};
     use sui::dynamic_object_field as dof;
+    use createdao::gtoken::{Self, GTOKEN};
+    use createdao::util;
     
     //--------Friend module--------
     friend createdao::create;
@@ -27,6 +29,7 @@ module createdao::dao {
     const EProposalVoteEnd:u64 = 3;
     const EProposalNotSuccess:u64 = 4;
     const EFundShortage: u64 = 5;
+    const EGtokenTreasuryCapSetted: u64 = 6;
 
     //--------Object------------
     // DAO global data
@@ -36,6 +39,10 @@ module createdao::dao {
 
         contributions:Table<address, u64>, // record everyone contribition 
         totalContribution:u64,
+
+
+        gtokenTreasuryCapId: ID,
+        gtokenBalance: Balance<GTOKEN>,
     }
 
     struct Proposal has key,store {
@@ -52,6 +59,10 @@ module createdao::dao {
         
         status: u8, // proposal status:ready/success/executed
         expire:u64, // proposal expiration time
+    }
+
+    struct DaoCap has key, store {
+        id: UID,
     }
 
     //--------Event----------
@@ -77,9 +88,23 @@ module createdao::dao {
 
             contributions: table::new(ctx),
             totalContribution: 0,
+
+
+            gtokenTreasuryCapId: util::empty_ID(),
+            gtokenBalance: balance::zero(),
         };
         
         transfer::share_object(daoData);
+        transfer::public_transfer(DaoCap{
+            id: object::new(ctx),
+        }, tx_context::sender(ctx));
+    }
+
+    public entry fun setGtokenTreasuryCap(_: &DaoCap, daoData:&mut DaoData, gtokenTreasuryCap:TreasuryCap<GTOKEN>) {
+        assert!(daoData.gtokenTreasuryCapId == util::empty_ID(), EGtokenTreasuryCapSetted);
+        let gtokenTreasuryCapId = object::id(&gtokenTreasuryCap);
+        daoData.gtokenTreasuryCapId = gtokenTreasuryCapId;
+        dof::add(&mut daoData.id, gtokenTreasuryCapId, gtokenTreasuryCap);
     }
 
     ///---------------Function----------------
@@ -162,7 +187,7 @@ module createdao::dao {
     }
 
     ///--------------Friend function, only call by friendly modules-----------------
-    public(friend) fun deposit(who: address, daoData:&mut DaoData, amount:Coin<SUI>) {
+    public(friend) fun deposit(who: address, daoData:&mut DaoData, amount:Coin<SUI>, _:&TxContext) {
        let value = coin::value(&amount);
        let b =  coin::into_balance(amount);
        balance::join(&mut daoData.asset, b);
@@ -176,6 +201,11 @@ module createdao::dao {
             *user_contribition = *user_contribition + contribution;
        };
        daoData.totalContribution = daoData.totalContribution + contribution;
+
+       //mint governance token to the contributor
+       let gtokenTreasuryCap =  dof::borrow_mut<ID, TreasuryCap<GTOKEN>>(&mut daoData.id, daoData.gtokenTreasuryCapId);
+       let newGtokenBalance = gtoken::mint_balance(gtokenTreasuryCap, contribution);
+       balance::join(&mut daoData.gtokenBalance, newGtokenBalance);
     }
 
     ///-------------Getter-------------------

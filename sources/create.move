@@ -238,7 +238,7 @@ module createdao::create {
         let totalIncomeValue = coin::value(&amount);
         // 10% deposit to DAO
         let depositAmount = coin::split(&mut amount, totalIncomeValue/10, ctx);
-        dao::deposit(who, daoData, depositAmount);
+        dao::deposit(who, daoData, depositAmount, ctx);
 
         // 90% is personal
         if (table::contains(&globalConfig.user_assets, who) == false) {
