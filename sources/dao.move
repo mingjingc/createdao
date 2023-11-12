@@ -119,7 +119,7 @@ module createdao::dao {
     // vote to the proposal. who has contribution to the DAO can do it.
     // @param daoData: gobal DAO data, only one object for whole package
     // @param proposalId: proposal object ID
-    public entry fun vote(daoData:&mut DaoData, proposalId:ID, clock: &Clock, ctx:&mut TxContext) {
+    public entry fun vote(daoData:&mut DaoData, proposalId:ID, clock: &Clock, ctx:&TxContext) {
         let proposal = dof::borrow_mut<ID, Proposal>(&mut daoData.id, proposalId);
         // validate proposal
         assert!(proposal.expire > timestamp(clock), EProposalExpired);

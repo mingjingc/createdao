@@ -125,7 +125,7 @@ module createdao::market {
 
     // creator remove their work from market
     // @param workId: object id of the work
-    public entry fun delist(market:&mut Market<SUI>, workId:ID, ctx:&mut TxContext) {
+    public entry fun delist(market:&mut Market<SUI>, workId:ID, ctx:&TxContext) {
         let sender = tx_context::sender(ctx);
         let Listing{id, price:_, owner} = dof::remove(&mut market.id, workId);
         assert!(owner == sender, ENotOwner);

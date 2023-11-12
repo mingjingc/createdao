@@ -152,7 +152,7 @@ module createdao::create {
 
     // user like a work when he think it's great
     // @param workId: object id of a work
-    public entry fun like(globalConfig:&mut GlobalConfig, workId:ID, ctx:&mut TxContext) {
+    public entry fun like(globalConfig:&mut GlobalConfig, workId:ID, ctx:&TxContext) {
         assert!(table::contains(&globalConfig.works, workId) == true, EWorkNotExist);
         let workGlobalInfo = table::borrow_mut(&mut globalConfig.works, workId);
 
